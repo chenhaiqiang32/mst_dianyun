@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>点云更新测试</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+      background: #f0f0f0;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    button {
+      background: #2196F3;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 5px;
+    }
+
+    button:hover {
+      background: #1976D2;
+    }
+
+    button.success {
+      background: #4CAF50;
+    }
+
+    button.warning {
+      background: #ff9800;
+    }
+
+    #log {
+      background: #f5f5f5;
+      padding: 10px;
+      border-radius: 4px;
+      font-family: monospace;
+      white-space: pre-wrap;
+      max-height: 300px;
+      overflow-y: auto;
+      font-size: 12px;
+      margin: 10px 0;
+    }
+
+    #renderContainer {
+      width: 100%;
+      height: 400px;
+      border: 1px solid #ddd;
+      margin: 10px 0;
+      position: relative;
+    }
+
+    .status {
+      padding: 5px 10px;
+      border-radius: 3px;
+      margin: 5px 0;
+      font-weight: bold;
+    }
+
+    .status.ok {
+      background: #4CAF50;
+      color: white;
+    }
+
+    .status.error {
+      background: #f44336;
+      color: white;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h1>点云更新测试</h1>
+
+    <div>
+      <button onclick="initDemo()">初始化演示</button>
+      <button onclick="testUpdate()">测试更新</button>
+      <button onclick="toggleAutoUpdate()" id="autoUpdateBtn">开启自动更新</button>
+      <button onclick="clearLog()">清空日志</button>
+    </div>
+
+    <div id="renderContainer"></div>
+    <div id="log"></div>
+  </div>
+
+  <script type="module">
+    import { PointCloudDemo } from './Editor3D.js';
+
+    let demo = null;
+    let autoUpdateInterval = null;
+    let updateCount = 0;
+
+    function log (message, type = 'info') {
+      const logDiv = document.getElementById('log');
+      const timestamp = new Date().toLocaleTimeString();
+      const typeIcon = {
+        'success': '✓',
+        'error': '✗',
+        'warning': '⚠',
+        'info': 'ℹ'
+      }[type] || 'ℹ';
+
+      const logEntry = `[${timestamp}] ${typeIcon} ${message}\n`;
+      logDiv.textContent += logEntry;
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    window.initDemo = function () {
+      log('=== 初始化点云演示 ===', 'info');
+
+      try {
+        if (demo) {
+          demo.dispose();
+        }
+
+        demo = new PointCloudDemo();
+        log('✓ 点云演示初始化成功', 'success');
+
+        // 监听点云加载完成事件
+        window.addEventListener('pointCloudLoaded', () => {
+          log('✓ 点云数据加载完成', 'success');
+          log(`  已加载点云数量: ${demo.pointClouds.length}`, 'info');
+        });
+
+      } catch (error) {
+        log(`✗ 初始化失败: ${error.message}`, 'error');
+      }
+    };
+
+    window.testUpdate = function () {
+      log('=== 测试点云更新 ===', 'info');
+
+      if (!demo) {
+        log('✗ 请先初始化演示', 'error');
+        return;
+      }
+
+      try {
+        demo.updatePointClouds();
+        updateCount++;
+        log(`✓ 点云更新成功 (第${updateCount}次)`, 'success');
+
+        // 显示当前点云信息
+        if (demo.pointClouds.length > 0) {
+          const currentPco = demo.pointClouds[demo.currentPointCloudIndex];
+          log(`  当前点云: ${currentPco.name}`, 'info');
+          log(`  点云位置: (${currentPco.position.x.toFixed(2)}, ${currentPco.position.y.toFixed(2)}, ${currentPco.position.z.toFixed(2)})`, 'info');
+          if (currentPco.material) {
+            log(`  点大小: ${currentPco.material.size.toFixed(2)}`, 'info');
+          }
+        }
+
+      } catch (error) {
+        log(`✗ 点云更新失败: ${error.message}`, 'error');
+      }
+    };
+
+    window.toggleAutoUpdate = function () {
+      const btn = document.getElementById('autoUpdateBtn');
+
+      if (autoUpdateInterval) {
+        clearInterval(autoUpdateInterval);
+        autoUpdateInterval = null;
+        btn.textContent = '开启自动更新';
+        btn.className = '';
+        log('✗ 自动更新已停止', 'warning');
+      } else {
+        if (!demo) {
+          log('✗ 请先初始化演示', 'error');
+          return;
+        }
+
+        autoUpdateInterval = setInterval(() => {
+          try {
+            demo.updatePointClouds();
+            updateCount++;
+            log(`✓ 自动更新 (第${updateCount}次)`, 'success');
+          } catch (error) {
+            log(`✗ 自动更新失败: ${error.message}`, 'error');
+          }
+        }, 1000); // 每秒更新一次
+
+        btn.textContent = '停止自动更新';
+        btn.className = 'warning';
+        log('✓ 自动更新已开启 (每秒更新一次)', 'success');
+      }
+    };
+
+    window.clearLog = function () {
+      document.getElementById('log').textContent = '';
+      updateCount = 0;
+    };
+
+    // 页面加载时初始化
+    window.addEventListener('load', () => {
+      log('点云更新测试页面加载完成', 'info');
+      log('点击"初始化演示"开始测试', 'info');
+    });
+  </script>
+</body>
+
+</html>

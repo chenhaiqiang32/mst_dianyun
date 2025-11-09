@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>点云调试页面</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+      background: #f0f0f0;
+    }
+
+    .debug-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .debug-section {
+      margin: 20px 0;
+      padding: 15px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+
+    .success {
+      border-color: #4CAF50;
+      background: #f1f8e9;
+    }
+
+    .error {
+      border-color: #f44336;
+      background: #ffebee;
+    }
+
+    .info {
+      border-color: #2196F3;
+      background: #e3f2fd;
+    }
+
+    .warning {
+      border-color: #ff9800;
+      background: #fff3e0;
+    }
+
+    button {
+      background: #2196F3;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 5px;
+    }
+
+    button:hover {
+      background: #1976D2;
+    }
+
+    #log {
+      background: #f5f5f5;
+      padding: 10px;
+      border-radius: 4px;
+      font-family: monospace;
+      white-space: pre-wrap;
+      max-height: 400px;
+      overflow-y: auto;
+      font-size: 12px;
+    }
+
+    .status-indicator {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      margin-right: 8px;
+    }
+
+    .status-success {
+      background: #4CAF50;
+    }
+
+    .status-error {
+      background: #f44336;
+    }
+
+    .status-warning {
+      background: #ff9800;
+    }
+
+    .status-info {
+      background: #2196F3;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="debug-container">
+    <h1>点云加载调试工具</h1>
+
+    <div class="debug-section info">
+      <h3>调试说明</h3>
+      <p>此页面用于诊断点云加载问题，包括数据文件检查、Three.js环境测试和Potree功能验证。</p>
+    </div>
+
+    <div class="debug-section">
+      <h3>基础环境检查</h3>
+      <button onclick="checkEnvironment()">检查Three.js环境</button>
+      <button onclick="checkPotree()">检查Potree库</button>
+      <button onclick="checkDataFiles()">检查数据文件</button>
+      <div id="envStatus"></div>
+    </div>
+
+    <div class="debug-section">
+      <h3>点云加载测试</h3>
+      <button onclick="testLionPointCloud()">测试狮子雕像点云</button>
+      <button onclick="testPumpPointCloud()">测试泵设备点云</button>
+      <button onclick="testSimplePointCloud()">测试简单点云</button>
+      <div id="pointCloudStatus"></div>
+    </div>
+
+    <div class="debug-section">
+      <h3>渲染测试</h3>
+      <button onclick="testRendering()">测试3D渲染</button>
+      <button onclick="testCamera()">测试相机控制</button>
+      <div id="renderStatus"></div>
+    </div>
+
+    <div class="debug-section">
+      <h3>详细日志</h3>
+      <button onclick="clearLog()">清空日志</button>
+      <div id="log"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+    import { Potree } from 'potree-core';
+
+    let potree = null;
+    let scene = null;
+    let camera = null;
+    let renderer = null;
+    let controls = null;
+
+    window.checkEnvironment = function () {
+      log('=== 环境检查开始 ===', 'info');
+
+      try {
+                        // 检查Three.js
+                if (THREE) {
+                    log('✓ THREE.js 可用', 'success');
+                    log(`  THREE版本: ${THREE.REVISION}`, 'info');
+                    
+                    // 检查WebGL支持
+                    const canvas = document.createElement('canvas');
+                    const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+                    if (gl) {
+                        log('✓ WebGL 支持', 'success');
+                        log(`  WebGL版本: ${gl.getParameter(gl.VERSION)}`, 'info');
+                    } else {
+                        log('✗ WebGL 不支持', 'error');
+                    }
+                } else {
+                    log('✗ THREE.js 不可用', 'error');
+                }
+
+        // 检查OrbitControls
+        if (OrbitControls) {
+          log('✓ OrbitControls 可用', 'success');
+        } else {
+          log('✗ OrbitControls 不可用', 'error');
+        }
+
+        // 检查Potree
+        if (Potree) {
+          log('✓ Potree 可用', 'success');
+          potree = new Potree();
+          log('✓ Potree 实例创建成功', 'success');
+        } else {
+          log('✗ Potree 不可用', 'error');
+        }
+
+        updateStatus('envStatus', 'success', '环境检查完成');
+
+      } catch (error) {
+        log(`✗ 环境检查失败: ${error.message}`, 'error');
+        updateStatus('envStatus', 'error', '环境检查失败');
+      }
+    };
+
+    window.checkPotree = function () {
+      log('=== Potree功能检查 ===', 'info');
+
+      try {
+        if (!potree) {
+          potree = new Potree();
+        }
+
+        log('✓ Potree实例创建成功', 'success');
+        log(`  Potree类型: ${typeof potree}`, 'info');
+
+        // 检查Potree方法
+        if (typeof potree.loadPointCloud === 'function') {
+          log('✓ loadPointCloud 方法可用', 'success');
+        } else {
+          log('✗ loadPointCloud 方法不可用', 'error');
+        }
+
+      } catch (error) {
+        log(`✗ Potree检查失败: ${error.message}`, 'error');
+      }
+    };
+
+    window.checkDataFiles = async function () {
+      log('=== 数据文件检查 ===', 'info');
+
+      const files = [
+        { url: '/data/lion_takanawa/cloud.js', name: '狮子雕像配置' },
+        { url: '/data/pump/metadata.json', name: '泵设备配置' },
+        { url: '/data/lion_takanawa/data/r/r.bin', name: '狮子雕像数据' },
+        { url: '/data/pump/octree.bin', name: '泵设备八叉树' }
+      ];
+
+      for (const file of files) {
+        try {
+          const response = await fetch(file.url);
+          if (response.ok) {
+            const size = response.headers.get('content-length');
+            log(`✓ ${file.name}: ${size} bytes`, 'success');
+          } else {
+            log(`✗ ${file.name}: HTTP ${response.status}`, 'error');
+          }
+        } catch (error) {
+          log(`✗ ${file.name}: ${error.message}`, 'error');
+        }
+      }
+    };
+
+    window.testLionPointCloud = async function () {
+      log('=== 测试狮子雕像点云 ===', 'info');
+
+      try {
+        if (!potree) {
+          potree = new Potree();
+        }
+
+        log('开始加载狮子雕像点云...', 'info');
+
+        const pco = await potree.loadPointCloud('cloud.js', '/data/lion_takanawa/');
+        log('✓ 狮子雕像点云加载成功', 'success');
+        log(`  点云对象: ${typeof pco}`, 'info');
+        log(`  几何体: ${pco.pcoGeometry ? '存在' : '不存在'}`, 'info');
+
+        if (pco.pcoGeometry) {
+          const box = pco.pcoGeometry.boundingBox;
+          log(`  边界框: ${box ? '存在' : '不存在'}`, 'info');
+          if (box) {
+            const size = box.getSize(new THREE.Vector3());
+            log(`  尺寸: ${size.x.toFixed(2)} × ${size.y.toFixed(2)} × ${size.z.toFixed(2)}`, 'info');
+          }
+        }
+
+        updateStatus('pointCloudStatus', 'success', '狮子雕像点云测试成功');
+
+      } catch (error) {
+        log(`✗ 狮子雕像点云测试失败: ${error.message}`, 'error');
+        log(`  错误堆栈: ${error.stack}`, 'error');
+        updateStatus('pointCloudStatus', 'error', '狮子雕像点云测试失败');
+      }
+    };
+
+    window.testPumpPointCloud = async function () {
+      log('=== 测试泵设备点云 ===', 'info');
+
+      try {
+        if (!potree) {
+          potree = new Potree();
+        }
+
+        log('开始加载泵设备点云...', 'info');
+
+        const pco = await potree.loadPointCloud('metadata.json', '/data/pump/');
+        log('✓ 泵设备点云加载成功', 'success');
+        log(`  点云对象: ${typeof pco}`, 'info');
+        log(`  几何体: ${pco.pcoGeometry ? '存在' : '不存在'}`, 'info');
+
+        updateStatus('pointCloudStatus', 'success', '泵设备点云测试成功');
+
+      } catch (error) {
+        log(`✗ 泵设备点云测试失败: ${error.message}`, 'error');
+        log(`  错误堆栈: ${error.stack}`, 'error');
+        updateStatus('pointCloudStatus', 'error', '泵设备点云测试失败');
+      }
+    };
+
+    window.testSimplePointCloud = function () {
+      log('=== 测试简单点云 ===', 'info');
+
+      try {
+        // 创建一个简单的点云几何体
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array([
+          -1, -1, 0,
+          1, -1, 0,
+          0, 1, 0
+        ]);
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+        const material = new THREE.PointsMaterial({
+          color: 0xff0000,
+          size: 0.1
+        });
+
+        const points = new THREE.Points(geometry, material);
+        log('✓ 简单点云创建成功', 'success');
+        log(`  点数: ${positions.length / 3}`, 'info');
+
+      } catch (error) {
+        log(`✗ 简单点云测试失败: ${error.message}`, 'error');
+      }
+    };
+
+    window.testRendering = function () {
+      log('=== 测试3D渲染 ===', 'info');
+
+      try {
+        // 创建场景
+        scene = new THREE.Scene();
+        log('✓ 场景创建成功', 'success');
+
+        // 创建相机
+        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 0, 5);
+        log('✓ 相机创建成功', 'success');
+
+        // 创建渲染器
+        renderer = new THREE.WebGLRenderer();
+        renderer.setSize(100, 100);
+        log('✓ 渲染器创建成功', 'success');
+
+        // 创建测试对象
+        const geometry = new THREE.BoxGeometry();
+        const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+        const cube = new THREE.Mesh(geometry, material);
+        scene.add(cube);
+        log('✓ 测试立方体创建成功', 'success');
+
+        // 渲染
+        renderer.render(scene, camera);
+        log('✓ 渲染成功', 'success');
+
+        updateStatus('renderStatus', 'success', '3D渲染测试成功');
+
+      } catch (error) {
+        log(`✗ 3D渲染测试失败: ${error.message}`, 'error');
+        updateStatus('renderStatus', 'error', '3D渲染测试失败');
+      }
+    };
+
+    window.testCamera = function () {
+      log('=== 测试相机控制 ===', 'info');
+
+      try {
+        if (!camera || !renderer) {
+          log('请先运行3D渲染测试', 'warning');
+          return;
+        }
+
+        // 创建控制器
+        controls = new OrbitControls(camera, renderer.domElement);
+        log('✓ OrbitControls创建成功', 'success');
+
+        // 测试控制器方法
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        log('✓ 控制器配置成功', 'success');
+
+        updateStatus('renderStatus', 'success', '相机控制测试成功');
+
+      } catch (error) {
+        log(`✗ 相机控制测试失败: ${error.message}`, 'error');
+        updateStatus('renderStatus', 'error', '相机控制测试失败');
+      }
+    };
+
+    function log (message, type = 'info') {
+      const logDiv = document.getElementById('log');
+      const timestamp = new Date().toLocaleTimeString();
+      const typeIcon = {
+        'success': '✓',
+        'error': '✗',
+        'warning': '⚠',
+        'info': 'ℹ'
+      }[type] || 'ℹ';
+
+      const logEntry = `[${timestamp}] ${typeIcon} ${message}\n`;
+      logDiv.textContent += logEntry;
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    function updateStatus (elementId, status, message) {
+      const element = document.getElementById(elementId);
+      const statusClass = `status-${status}`;
+      element.innerHTML = `<span class="status-indicator ${statusClass}"></span>${message}`;
+    }
+
+    window.clearLog = function () {
+      document.getElementById('log').textContent = '';
+    };
+
+    // 页面加载时自动检查环境
+    window.addEventListener('load', () => {
+      log('调试页面加载完成', 'info');
+      checkEnvironment();
+    });
+  </script>
+</body>
+
+</html>

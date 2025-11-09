@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Potree调试测试</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+      background: #f0f0f0;
+    }
+
+    .test-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .test-item {
+      margin: 10px 0;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+
+    .success {
+      border-color: #4CAF50;
+      background: #f1f8e9;
+    }
+
+    .error {
+      border-color: #f44336;
+      background: #ffebee;
+    }
+
+    .info {
+      border-color: #2196F3;
+      background: #e3f2fd;
+    }
+
+    button {
+      background: #2196F3;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 5px;
+    }
+
+    button:hover {
+      background: #1976D2;
+    }
+
+    #log {
+      background: #f5f5f5;
+      padding: 10px;
+      border-radius: 4px;
+      font-family: monospace;
+      white-space: pre-wrap;
+      max-height: 400px;
+      overflow-y: auto;
+      font-size: 12px;
+    }
+
+    #renderContainer {
+      width: 100%;
+      height: 400px;
+      border: 1px solid #ddd;
+      margin: 10px 0;
+      position: relative;
+    }
+
+    .status {
+      padding: 5px 10px;
+      border-radius: 3px;
+      margin: 5px 0;
+      font-weight: bold;
+    }
+
+    .status.ok {
+      background: #4CAF50;
+      color: white;
+    }
+
+    .status.error {
+      background: #f44336;
+      color: white;
+    }
+
+    .status.warning {
+      background: #ff9800;
+      color: white;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="test-container">
+    <h1>Potree调试测试</h1>
+
+    <div class="test-item info">
+      <h3>测试说明</h3>
+      <p>此页面专门用于调试Potree的导入、加载和渲染问题。</p>
+    </div>
+
+    <div class="test-item">
+      <h3>环境检查</h3>
+      <div id="envStatus"></div>
+      <button onclick="checkEnvironment()">检查环境</button>
+      <button onclick="testPotreeImport()">测试Potree导入</button>
+      <button onclick="testFileAccess()">测试文件访问</button>
+    </div>
+
+    <div class="test-item">
+      <h3>点云加载测试</h3>
+      <button onclick="testSimpleLoad()">简单加载测试</button>
+      <button onclick="testPotreeLoad()">Potree加载测试</button>
+      <button onclick="testManualPointCloud()">手动点云测试</button>
+    </div>
+
+    <div class="test-item">
+      <h3>渲染区域</h3>
+      <div id="renderContainer"></div>
+    </div>
+
+    <div class="test-item">
+      <h3>调试日志</h3>
+      <div id="log"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+
+    let scene, camera, renderer, controls;
+    let Potree = null;
+
+    // 尝试导入Potree
+    async function importPotree () {
+      try {
+        const potreeModule = await import('potree-core');
+        Potree = potreeModule.Potree || potreeModule.default;
+        log('✓ Potree导入成功', 'success');
+        log(`  Potree类型: ${typeof Potree}`, 'info');
+        return true;
+      } catch (error) {
+        log(`✗ Potree导入失败: ${error.message}`, 'error');
+        return false;
+      }
+    }
+
+    // 初始化Three.js场景
+    function initScene () {
+      const container = document.getElementById('renderContainer');
+
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x000000);
+
+      camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
+      camera.position.set(0, 0, 10);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      container.appendChild(renderer.domElement);
+
+      controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+      scene.add(ambientLight);
+
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      directionalLight.position.set(10, 10, 5);
+      scene.add(directionalLight);
+
+      const axesHelper = new THREE.AxesHelper(5);
+      scene.add(axesHelper);
+
+      animate();
+      log('✓ Three.js场景初始化完成', 'success');
+    }
+
+    function animate () {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    window.checkEnvironment = async function () {
+      log('=== 环境检查 ===', 'info');
+
+      const envStatus = document.getElementById('envStatus');
+      envStatus.innerHTML = '';
+
+      // 检查WebGL支持
+      const canvas = document.createElement('canvas');
+      const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+      if (gl) {
+        envStatus.innerHTML += '<div class="status ok">✓ WebGL支持正常</div>';
+        log('✓ WebGL支持正常', 'success');
+      } else {
+        envStatus.innerHTML += '<div class="status error">✗ WebGL不支持</div>';
+        log('✗ WebGL不支持', 'error');
+      }
+
+      // 检查Three.js
+      if (typeof THREE !== 'undefined') {
+        envStatus.innerHTML += '<div class="status ok">✓ Three.js加载正常</div>';
+        log('✓ Three.js加载正常', 'success');
+        log(`  Three.js版本: ${THREE.REVISION}`, 'info');
+      } else {
+        envStatus.innerHTML += '<div class="status error">✗ Three.js未加载</div>';
+        log('✗ Three.js未加载', 'error');
+      }
+
+      // 检查OrbitControls
+      if (typeof OrbitControls !== 'undefined') {
+        envStatus.innerHTML += '<div class="status ok">✓ OrbitControls加载正常</div>';
+        log('✓ OrbitControls加载正常', 'success');
+      } else {
+        envStatus.innerHTML += '<div class="status error">✗ OrbitControls未加载</div>';
+        log('✗ OrbitControls未加载', 'error');
+      }
+
+      // 检查Potree
+      const potreeImported = await importPotree();
+      if (potreeImported) {
+        envStatus.innerHTML += '<div class="status ok">✓ Potree导入成功</div>';
+      } else {
+        envStatus.innerHTML += '<div class="status error">✗ Potree导入失败</div>';
+      }
+    };
+
+    window.testPotreeImport = async function () {
+      log('=== 测试Potree导入 ===', 'info');
+
+      const success = await importPotree();
+      if (success) {
+        log('尝试创建Potree实例...', 'info');
+        try {
+          const potree = new Potree();
+          log('✓ Potree实例创建成功', 'success');
+          log(`  Potree实例:`, potree);
+
+          // 检查Potree的方法
+          if (typeof potree.loadPointCloud === 'function') {
+            log('✓ loadPointCloud方法存在', 'success');
+          } else {
+            log('✗ loadPointCloud方法不存在', 'error');
+          }
+        } catch (error) {
+          log(`✗ Potree实例创建失败: ${error.message}`, 'error');
+        }
+      }
+    };
+
+    window.testFileAccess = async function () {
+      log('=== 测试文件访问 ===', 'info');
+
+      const testPaths = [
+        '/public/data/lion_takanawa/cloud.js',
+        '/data/lion_takanawa/cloud.js',
+        '/public/data/lion_takanawa/data/r/r.bin',
+        '/data/lion_takanawa/data/r/r.bin'
+      ];
+
+      for (const path of testPaths) {
+        try {
+          const response = await fetch(path);
+          if (response.ok) {
+            log(`✓ 文件可访问: ${path}`, 'success');
+            if (path.endsWith('.js')) {
+              const text = await response.text();
+              log(`  文件大小: ${text.length} 字符`, 'info');
+              log(`  文件前100字符: ${text.substring(0, 100)}`, 'info');
+
+              try {
+                const data = JSON.parse(text);
+                log(`  文件内容: ${JSON.stringify(data, null, 2)}`, 'info');
+              } catch (parseError) {
+                log(`✗ JSON解析失败: ${parseError.message}`, 'error');
+                log(`  错误位置: ${parseError.message}`, 'error');
+                // 尝试清理文本
+                const cleanedText = text.trim().replace(/[\r\n\t]/g, '');
+                log(`  清理后文本: ${cleanedText.substring(0, 200)}`, 'info');
+              }
+            }
+          } else {
+            log(`✗ 文件不可访问: ${path} (${response.status})`, 'error');
+          }
+        } catch (error) {
+          log(`✗ 文件访问失败: ${path} - ${error.message}`, 'error');
+        }
+      }
+    };
+
+    window.testSimpleLoad = async function () {
+      log('=== 简单加载测试 ===', 'info');
+
+      if (!scene) {
+        initScene();
+      }
+
+      // 清除现有对象
+      scene.children = scene.children.filter(child =>
+        child.type === 'AmbientLight' ||
+        child.type === 'DirectionalLight' ||
+        child.type === 'AxesHelper'
+      );
+
+      try {
+        // 尝试加载cloud.js
+        const response = await fetch('/public/data/lion_takanawa/cloud.js');
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const text = await response.text();
+        log(`✓ cloud.js文件加载成功，大小: ${text.length} 字符`, 'success');
+
+        // 清理文本并解析JSON
+        const cleanedText = text.trim();
+        const cloudData = JSON.parse(cleanedText);
+
+        log(`  版本: ${cloudData.version}`, 'info');
+        log(`  边界框: ${JSON.stringify(cloudData.boundingBox)}`, 'info');
+
+        // 创建基于边界框的简单点云
+        createSimplePointCloud(cloudData.boundingBox);
+
+      } catch (error) {
+        log(`✗ 简单加载失败: ${error.message}`, 'error');
+        if (error instanceof SyntaxError) {
+          log(`  JSON解析错误，尝试手动解析...`, 'info');
+          try {
+            const response = await fetch('/public/data/lion_takanawa/cloud.js');
+            const text = await response.text();
+            // 使用eval解析（仅用于调试）
+            const cloudData = eval('(' + text + ')');
+            log(`✓ 手动解析成功`, 'success');
+            log(`  版本: ${cloudData.version}`, 'info');
+            createSimplePointCloud(cloudData.boundingBox);
+          } catch (evalError) {
+            log(`✗ 手动解析也失败: ${evalError.message}`, 'error');
+          }
+        }
+      }
+    };
+
+    window.testPotreeLoad = async function () {
+      log('=== Potree加载测试 ===', 'info');
+
+      if (!Potree) {
+        log('Potree未导入，尝试导入...', 'info');
+        const imported = await importPotree();
+        if (!imported) {
+          log('✗ Potree导入失败，无法进行加载测试', 'error');
+          return;
+        }
+      }
+
+      if (!scene) {
+        initScene();
+      }
+
+      // 清除现有对象
+      scene.children = scene.children.filter(child =>
+        child.type === 'AmbientLight' ||
+        child.type === 'DirectionalLight' ||
+        child.type === 'AxesHelper'
+      );
+
+      try {
+        const potree = new Potree();
+        log('✓ Potree实例创建成功', 'success');
+
+        log('尝试加载点云...', 'info');
+        log('使用路径: /public/data/lion_takanawa/cloud.js', 'info');
+
+        const pco = await potree.loadPointCloud('cloud.js', '/public/data/lion_takanawa/');
+
+        log('✓ Potree点云加载成功', 'success');
+        log(`  点云对象:`, pco);
+
+        if (pco.material) {
+          pco.material.size = 2.0;
+          pco.material.shape = 2;
+        }
+        pco.visible = true;
+
+        scene.add(pco);
+        log('✓ 点云已添加到场景', 'success');
+
+      } catch (error) {
+        log(`✗ Potree加载失败: ${error.message}`, 'error');
+        log(`  错误堆栈: ${error.stack}`, 'error');
+
+        // 尝试备用路径
+        log('尝试备用路径: /data/lion_takanawa/cloud.js', 'info');
+        try {
+          const potree = new Potree();
+          const pco = await potree.loadPointCloud('cloud.js', '/data/lion_takanawa/');
+
+          log('✓ 备用路径Potree加载成功', 'success');
+          log(`  点云对象:`, pco);
+
+          if (pco.material) {
+            pco.material.size = 2.0;
+            pco.material.shape = 2;
+          }
+          pco.visible = true;
+
+          scene.add(pco);
+          log('✓ 点云已添加到场景', 'success');
+
+        } catch (altError) {
+          log(`✗ 备用路径也失败: ${altError.message}`, 'error');
+          log(`  错误堆栈: ${altError.stack}`, 'error');
+        }
+      }
+    };
+
+    window.testManualPointCloud = function () {
+      log('=== 手动点云测试 ===', 'info');
+
+      if (!scene) {
+        initScene();
+      }
+
+      // 清除现有对象
+      scene.children = scene.children.filter(child =>
+        child.type === 'AmbientLight' ||
+        child.type === 'DirectionalLight' ||
+        child.type === 'AxesHelper'
+      );
+
+      const geometry = new THREE.BufferGeometry();
+      const pointCount = 1000;
+      const positions = new Float32Array(pointCount * 3);
+      const colors = new Float32Array(pointCount * 3);
+
+      for (let i = 0; i < pointCount; i++) {
+        positions[i * 3] = (Math.random() - 0.5) * 10;
+        positions[i * 3 + 1] = (Math.random() - 0.5) * 10;
+        positions[i * 3 + 2] = (Math.random() - 0.5) * 10;
+
+        colors[i * 3] = Math.random();
+        colors[i * 3 + 1] = Math.random();
+        colors[i * 3 + 2] = Math.random();
+      }
+
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+      const material = new THREE.PointsMaterial({
+        size: 0.1,
+        vertexColors: true,
+        sizeAttenuation: true
+      });
+
+      const points = new THREE.Points(geometry, material);
+      points.name = 'manualPointCloud';
+      scene.add(points);
+
+      log(`✓ 手动点云创建成功，点数: ${pointCount}`, 'success');
+    };
+
+    function createSimplePointCloud (boundingBox) {
+      const geometry = new THREE.BufferGeometry();
+      const pointCount = 2000;
+      const positions = new Float32Array(pointCount * 3);
+      const colors = new Float32Array(pointCount * 3);
+
+      for (let i = 0; i < pointCount; i++) {
+        positions[i * 3] = boundingBox.lx + Math.random() * (boundingBox.ux - boundingBox.lx);
+        positions[i * 3 + 1] = boundingBox.ly + Math.random() * (boundingBox.uy - boundingBox.ly);
+        positions[i * 3 + 2] = boundingBox.lz + Math.random() * (boundingBox.uz - boundingBox.lz);
+
+        colors[i * 3] = Math.random();
+        colors[i * 3 + 1] = Math.random();
+        colors[i * 3 + 2] = Math.random();
+      }
+
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+      const material = new THREE.PointsMaterial({
+        size: 0.05,
+        vertexColors: true,
+        sizeAttenuation: true
+      });
+
+      const points = new THREE.Points(geometry, material);
+      points.name = 'simplePointCloud';
+      scene.add(points);
+
+      // 调整相机
+      const center = new THREE.Vector3(
+        (boundingBox.lx + boundingBox.ux) / 2,
+        (boundingBox.ly + boundingBox.uy) / 2,
+        (boundingBox.lz + boundingBox.uz) / 2
+      );
+
+      const size = new THREE.Vector3(
+        boundingBox.ux - boundingBox.lx,
+        boundingBox.uy - boundingBox.ly,
+        boundingBox.uz - boundingBox.lz
+      );
+
+      const maxDim = Math.max(size.x, size.y, size.z);
+
+      camera.position.set(center.x, center.y, center.z + maxDim * 2);
+      camera.lookAt(center);
+      controls.target.copy(center);
+      controls.update();
+
+      log(`✓ 简单点云创建成功，点数: ${pointCount}`, 'success');
+    }
+
+    function log (message, type = 'info') {
+      const logDiv = document.getElementById('log');
+      const timestamp = new Date().toLocaleTimeString();
+      const typeIcon = {
+        'success': '✓',
+        'error': '✗',
+        'warning': '⚠',
+        'info': 'ℹ'
+      }[type] || 'ℹ';
+
+      const logEntry = `[${timestamp}] ${typeIcon} ${message}\n`;
+      logDiv.textContent += logEntry;
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    // 页面加载时初始化
+    window.addEventListener('load', () => {
+      log('Potree调试测试页面加载完成', 'info');
+      initScene();
+    });
+  </script>
+</body>
+
+</html>

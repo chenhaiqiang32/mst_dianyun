@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>简单点云测试</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+      background: #f0f0f0;
+    }
+
+    .test-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .test-item {
+      margin: 10px 0;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+
+    .success {
+      border-color: #4CAF50;
+      background: #f1f8e9;
+    }
+
+    .error {
+      border-color: #f44336;
+      background: #ffebee;
+    }
+
+    .info {
+      border-color: #2196F3;
+      background: #e3f2fd;
+    }
+
+    button {
+      background: #2196F3;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 5px;
+    }
+
+    button:hover {
+      background: #1976D2;
+    }
+
+    #log {
+      background: #f5f5f5;
+      padding: 10px;
+      border-radius: 4px;
+      font-family: monospace;
+      white-space: pre-wrap;
+      max-height: 400px;
+      overflow-y: auto;
+      font-size: 12px;
+    }
+
+    #renderContainer {
+      width: 100%;
+      height: 400px;
+      border: 1px solid #ddd;
+      margin: 10px 0;
+      position: relative;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="test-container">
+    <h1>简单点云渲染测试</h1>
+
+    <div class="test-item info">
+      <h3>测试说明</h3>
+      <p>此页面用于测试点云渲染功能，包括手动创建点云和加载真实点云数据。</p>
+    </div>
+
+    <div class="test-item">
+      <h3>基础测试</h3>
+      <button onclick="testManualPointCloud()">测试手动创建点云</button>
+      <button onclick="testPotreePointCloud()">测试Potree点云</button>
+      <button onclick="clearLog()">清空日志</button>
+    </div>
+
+    <div class="test-item">
+      <h3>渲染区域</h3>
+      <div id="renderContainer"></div>
+    </div>
+
+    <div class="test-item">
+      <h3>测试日志</h3>
+      <div id="log"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+    import { Potree } from 'potree-core';
+
+    let scene, camera, renderer, controls;
+
+    // 初始化Three.js场景
+    function initScene () {
+      const container = document.getElementById('renderContainer');
+
+      // 创建场景
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x000000);
+
+      // 创建相机
+      camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
+      camera.position.set(0, 0, 10);
+
+      // 创建渲染器
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      container.appendChild(renderer.domElement);
+
+      // 创建控制器
+      controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      // 添加光照
+      const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+      scene.add(ambientLight);
+
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      directionalLight.position.set(10, 10, 5);
+      scene.add(directionalLight);
+
+      // 添加坐标轴
+      const axesHelper = new THREE.AxesHelper(5);
+      scene.add(axesHelper);
+
+      // 启动动画循环
+      animate();
+
+      log('Three.js场景初始化完成', 'success');
+    }
+
+    function animate () {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    window.testManualPointCloud = function () {
+      log('=== 测试手动创建点云 ===', 'info');
+
+      try {
+        if (!scene) {
+          initScene();
+        }
+
+        // 清除现有对象
+        scene.children = scene.children.filter(child =>
+          child.type === 'AmbientLight' ||
+          child.type === 'DirectionalLight' ||
+          child.type === 'AxesHelper'
+        );
+
+        // 创建点云几何体
+        const geometry = new THREE.BufferGeometry();
+
+        // 创建一些随机点
+        const pointCount = 1000;
+        const positions = new Float32Array(pointCount * 3);
+        const colors = new Float32Array(pointCount * 3);
+
+        for (let i = 0; i < pointCount; i++) {
+          // 位置
+          positions[i * 3] = (Math.random() - 0.5) * 10;
+          positions[i * 3 + 1] = (Math.random() - 0.5) * 10;
+          positions[i * 3 + 2] = (Math.random() - 0.5) * 10;
+
+          // 颜色
+          colors[i * 3] = Math.random();
+          colors[i * 3 + 1] = Math.random();
+          colors[i * 3 + 2] = Math.random();
+        }
+
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+        // 创建点云材质
+        const material = new THREE.PointsMaterial({
+          size: 0.1,
+          vertexColors: true,
+          sizeAttenuation: true
+        });
+
+        // 创建点云对象
+        const points = new THREE.Points(geometry, material);
+        points.name = 'manualPointCloud';
+        scene.add(points);
+
+        log(`✓ 手动点云创建成功，点数: ${pointCount}`, 'success');
+        log(`  点云对象:`, points);
+        log(`  几何体:`, geometry);
+        log(`  材质:`, material);
+
+      } catch (error) {
+        log(`✗ 手动点云创建失败: ${error.message}`, 'error');
+      }
+    };
+
+    window.testPotreePointCloud = function () {
+      log('=== 测试Potree点云 ===', 'info');
+
+      try {
+        if (!scene) {
+          initScene();
+        }
+
+        // 清除现有对象
+        scene.children = scene.children.filter(child =>
+          child.type === 'AmbientLight' ||
+          child.type === 'DirectionalLight' ||
+          child.type === 'AxesHelper'
+        );
+
+        log('开始加载狮子雕像点云...', 'info');
+        log('使用路径: /public/data/lion_takanawa/cloud.js', 'info');
+
+        // 使用fetch先检查文件是否存在
+        fetch('/public/data/lion_takanawa/cloud.js')
+          .then(response => {
+            if (!response.ok) {
+              throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.json();
+          })
+          .then(cloudData => {
+            log('✓ cloud.js文件加载成功', 'success');
+            log(`  版本: ${cloudData.version}`, 'info');
+            log(`  边界框: ${JSON.stringify(cloudData.boundingBox)}`, 'info');
+            log(`  点属性: ${cloudData.pointAttributes.join(', ')}`, 'info');
+
+            // 尝试使用Potree加载
+            return loadWithPotree(cloudData);
+          })
+          .catch(error => {
+            log(`✗ 文件加载失败: ${error.message}`, 'error');
+
+            // 尝试备用路径
+            log('尝试备用路径: /data/lion_takanawa/cloud.js', 'info');
+            return fetch('/data/lion_takanawa/cloud.js')
+              .then(response => {
+                if (!response.ok) {
+                  throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                return response.json();
+              })
+              .then(cloudData => {
+                log('✓ 备用路径加载成功', 'success');
+                return loadWithPotree(cloudData);
+              });
+          })
+          .catch(error => {
+            log(`✗ 所有路径都失败: ${error.message}`, 'error');
+            log('尝试创建模拟点云...', 'info');
+            createMockPointCloud();
+          });
+
+      } catch (error) {
+        log(`✗ Potree测试失败: ${error.message}`, 'error');
+      }
+    };
+
+    function loadWithPotree (cloudData) {
+      return new Promise((resolve, reject) => {
+        try {
+          log('尝试使用Potree加载点云...', 'info');
+
+          // 检查Potree是否可用
+          if (typeof Potree === 'undefined') {
+            throw new Error('Potree未定义，可能未正确导入');
+          }
+
+          const potree = new Potree();
+          log('✓ Potree实例创建成功', 'success');
+
+          // 尝试不同的加载方法
+          const basePath = '/public/data/lion_takanawa/';
+
+          potree.loadPointCloud('cloud.js', basePath)
+            .then((pco) => {
+              log('✓ Potree点云加载成功', 'success');
+              processLoadedPointCloud(pco);
+              resolve(pco);
+            })
+            .catch(error => {
+              log(`✗ Potree加载失败: ${error.message}`, 'error');
+
+              // 尝试备用路径
+              const altPath = '/data/lion_takanawa/';
+              log(`尝试备用路径: ${altPath}`, 'info');
+
+              potree.loadPointCloud('cloud.js', altPath)
+                .then((pco) => {
+                  log('✓ 备用路径Potree加载成功', 'success');
+                  processLoadedPointCloud(pco);
+                  resolve(pco);
+                })
+                .catch(altError => {
+                  log(`✗ 备用路径也失败: ${altError.message}`, 'error');
+                  reject(altError);
+                });
+            });
+        } catch (error) {
+          reject(error);
+        }
+      });
+    }
+
+    function processLoadedPointCloud (pco) {
+      log(`  点云对象:`, pco);
+      log(`  几何体:`, pco.pcoGeometry);
+      log(`  材质:`, pco.material);
+
+      if (pco.pcoGeometry) {
+        log(`  点数: ${pco.pcoGeometry.pointCount || 'unknown'}`, 'info');
+        log(`  边界框:`, pco.pcoGeometry.boundingBox, 'info');
+      }
+
+      // 设置材质属性
+      if (pco.material) {
+        pco.material.size = 2.0;
+        pco.material.shape = 2;
+        pco.material.inputColorEncoding = 1;
+        pco.material.outputColorEncoding = 1;
+      }
+      pco.visible = true;
+
+      // 添加到场景
+      scene.add(pco);
+
+      // 调整相机位置
+      if (pco.pcoGeometry && pco.pcoGeometry.boundingBox) {
+        const box = pco.pcoGeometry.boundingBox;
+        const center = box.getCenter(new THREE.Vector3());
+        const size = box.getSize(new THREE.Vector3());
+        const maxDim = Math.max(size.x, size.y, size.z);
+
+        camera.position.set(center.x, center.y, center.z + maxDim * 2);
+        camera.lookAt(center);
+        controls.target.copy(center);
+        controls.update();
+
+        log(`  相机调整到点云中心: ${center.x}, ${center.y}, ${center.z}`, 'info');
+      }
+
+      log('✓ 点云已添加到场景', 'success');
+    }
+
+    function createMockPointCloud () {
+      log('创建基于cloud.js数据的模拟点云...', 'info');
+
+      // 使用cloud.js中的边界框信息创建模拟点云
+      const boundingBox = {
+        lx: -0.748212993144989,
+        ly: -2.78040599822998,
+        lz: 2.54782128334045,
+        ux: 3.89967638254166,
+        uy: 1.86748337745667,
+        uz: 7.1957106590271
+      };
+
+      const geometry = new THREE.BufferGeometry();
+      const pointCount = 5000;
+      const positions = new Float32Array(pointCount * 3);
+      const colors = new Float32Array(pointCount * 3);
+
+      for (let i = 0; i < pointCount; i++) {
+        // 在边界框内随机生成点
+        positions[i * 3] = boundingBox.lx + Math.random() * (boundingBox.ux - boundingBox.lx);
+        positions[i * 3 + 1] = boundingBox.ly + Math.random() * (boundingBox.uy - boundingBox.ly);
+        positions[i * 3 + 2] = boundingBox.lz + Math.random() * (boundingBox.uz - boundingBox.lz);
+
+        // 颜色
+        colors[i * 3] = Math.random();
+        colors[i * 3 + 1] = Math.random();
+        colors[i * 3 + 2] = Math.random();
+      }
+
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+      const material = new THREE.PointsMaterial({
+        size: 0.05,
+        vertexColors: true,
+        sizeAttenuation: true
+      });
+
+      const points = new THREE.Points(geometry, material);
+      points.name = 'mockPointCloud';
+      scene.add(points);
+
+      // 调整相机
+      const center = new THREE.Vector3(
+        (boundingBox.lx + boundingBox.ux) / 2,
+        (boundingBox.ly + boundingBox.uy) / 2,
+        (boundingBox.lz + boundingBox.uz) / 2
+      );
+
+      const size = new THREE.Vector3(
+        boundingBox.ux - boundingBox.lx,
+        boundingBox.uy - boundingBox.ly,
+        boundingBox.uz - boundingBox.lz
+      );
+
+      const maxDim = Math.max(size.x, size.y, size.z);
+
+      camera.position.set(center.x, center.y, center.z + maxDim * 2);
+      camera.lookAt(center);
+      controls.target.copy(center);
+      controls.update();
+
+      log(`✓ 模拟点云创建成功，点数: ${pointCount}`, 'success');
+      log(`  边界框: ${JSON.stringify(boundingBox)}`, 'info');
+    }
+
+    function log (message, type = 'info') {
+      const logDiv = document.getElementById('log');
+      const timestamp = new Date().toLocaleTimeString();
+      const typeIcon = {
+        'success': '✓',
+        'error': '✗',
+        'warning': '⚠',
+        'info': 'ℹ'
+      }[type] || 'ℹ';
+
+      const logEntry = `[${timestamp}] ${typeIcon} ${message}\n`;
+      logDiv.textContent += logEntry;
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    window.clearLog = function () {
+      document.getElementById('log').textContent = '';
+    };
+
+    // 页面加载时初始化
+    window.addEventListener('load', () => {
+      log('简单点云测试页面加载完成', 'info');
+      initScene();
+    });
+  </script>
+</body>
+
+</html>

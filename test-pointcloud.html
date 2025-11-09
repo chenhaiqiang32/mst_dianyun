@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>点云加载测试</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+      background: #f0f0f0;
+    }
+
+    .test-container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .test-item {
+      margin: 10px 0;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+
+    .success {
+      border-color: #4CAF50;
+      background: #f1f8e9;
+    }
+
+    .error {
+      border-color: #f44336;
+      background: #ffebee;
+    }
+
+    .info {
+      border-color: #2196F3;
+      background: #e3f2fd;
+    }
+
+    button {
+      background: #2196F3;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 5px;
+    }
+
+    button:hover {
+      background: #1976D2;
+    }
+
+    #log {
+      background: #f5f5f5;
+      padding: 10px;
+      border-radius: 4px;
+      font-family: monospace;
+      white-space: pre-wrap;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="test-container">
+    <h1>点云数据加载测试</h1>
+
+    <div class="test-item info">
+      <h3>测试说明</h3>
+      <p>此页面用于测试点云数据文件的加载情况，验证数据文件是否完整且可访问。</p>
+    </div>
+
+    <div class="test-item">
+      <h3>数据文件检查</h3>
+      <button onclick="checkDataFiles()">检查数据文件</button>
+      <button onclick="clearLog()">清空日志</button>
+    </div>
+
+    <div class="test-item">
+      <h3>点云加载测试</h3>
+      <button onclick="testLionPointCloud()">测试狮子雕像点云</button>
+      <button onclick="testPumpPointCloud()">测试泵设备点云</button>
+    </div>
+
+    <div class="test-item">
+      <h3>测试日志</h3>
+      <div id="log"></div>
+    </div>
+  </div>
+
+  <script>
+    function log (message, type = 'info') {
+      const logDiv = document.getElementById('log');
+      const timestamp = new Date().toLocaleTimeString();
+      const logEntry = `[${timestamp}] ${message}\n`;
+      logDiv.textContent += logEntry;
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    function clearLog () {
+      document.getElementById('log').textContent = '';
+    }
+
+    async function checkFile (url) {
+      try {
+        const response = await fetch(url);
+        if (response.ok) {
+          return { success: true, size: response.headers.get('content-length') };
+        } else {
+          return { success: false, error: `HTTP ${response.status}` };
+        }
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
+    }
+
+    async function checkDataFiles () {
+      log('开始检查数据文件...', 'info');
+
+      const files = [
+        '/data/lion_takanawa/cloud.js',
+        '/data/pump/metadata.json',
+        '/data/pump/octree.bin',
+        '/data/pump/hierarchy.bin'
+      ];
+
+      for (const file of files) {
+        const result = await checkFile(file);
+        if (result.success) {
+          log(`✓ ${file} - 可访问 (${result.size} bytes)`, 'success');
+        } else {
+          log(`✗ ${file} - 错误: ${result.error}`, 'error');
+        }
+      }
+    }
+
+    async function testLionPointCloud () {
+      log('测试狮子雕像点云数据...', 'info');
+
+      try {
+        const response = await fetch('/data/lion_takanawa/cloud.js');
+        const data = await response.json();
+
+        log(`✓ 狮子雕像点云配置加载成功`, 'success');
+        log(`  版本: ${data.version}`, 'info');
+        log(`  点属性: ${data.pointAttributes.join(', ')}`, 'info');
+        log(`  间距: ${data.spacing}`, 'info');
+        log(`  缩放: ${data.scale}`, 'info');
+
+        // 检查数据目录
+        const dataResponse = await fetch('/data/lion_takanawa/data/r/r.bin');
+        if (dataResponse.ok) {
+          log(`✓ 八叉树数据文件可访问`, 'success');
+        } else {
+          log(`✗ 八叉树数据文件不可访问`, 'error');
+        }
+
+      } catch (error) {
+        log(`✗ 狮子雕像点云测试失败: ${error.message}`, 'error');
+      }
+    }
+
+    async function testPumpPointCloud () {
+      log('测试泵设备点云数据...', 'info');
+
+      try {
+        const response = await fetch('/data/pump/metadata.json');
+        const data = await response.json();
+
+        log(`✓ 泵设备点云配置加载成功`, 'success');
+        log(`  版本: ${data.version}`, 'info');
+        log(`  点数: ${data.points.toLocaleString()}`, 'info');
+        log(`  层次深度: ${data.hierarchy.depth}`, 'info');
+        log(`  间距: ${data.spacing}`, 'info');
+
+        // 检查二进制文件
+        const octreeResponse = await fetch('/data/pump/octree.bin');
+        if (octreeResponse.ok) {
+          const size = octreeResponse.headers.get('content-length');
+          log(`✓ 八叉树数据文件可访问 (${size} bytes)`, 'success');
+        } else {
+          log(`✗ 八叉树数据文件不可访问`, 'error');
+        }
+
+        const hierarchyResponse = await fetch('/data/pump/hierarchy.bin');
+        if (hierarchyResponse.ok) {
+          const size = hierarchyResponse.headers.get('content-length');
+          log(`✓ 层次结构文件可访问 (${size} bytes)`, 'success');
+        } else {
+          log(`✗ 层次结构文件不可访问`, 'error');
+        }
+
+      } catch (error) {
+        log(`✗ 泵设备点云测试失败: ${error.message}`, 'error');
+      }
+    }
+
+    // 页面加载时自动检查
+    window.addEventListener('load', () => {
+      log('页面加载完成，可以开始测试', 'info');
+    });
+  </script>
+</body>
+
+</html>

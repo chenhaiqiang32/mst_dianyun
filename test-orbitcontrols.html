@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OrbitControls 测试</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+      background: #f0f0f0;
+    }
+
+    .test-container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .test-item {
+      margin: 10px 0;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+
+    .success {
+      border-color: #4CAF50;
+      background: #f1f8e9;
+    }
+
+    .error {
+      border-color: #f44336;
+      background: #ffebee;
+    }
+
+    .info {
+      border-color: #2196F3;
+      background: #e3f2fd;
+    }
+
+    button {
+      background: #2196F3;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 5px;
+    }
+
+    button:hover {
+      background: #1976D2;
+    }
+
+    #log {
+      background: #f5f5f5;
+      padding: 10px;
+      border-radius: 4px;
+      font-family: monospace;
+      white-space: pre-wrap;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="test-container">
+    <h1>OrbitControls 导入测试</h1>
+
+    <div class="test-item info">
+      <h3>测试说明</h3>
+      <p>此页面用于测试Three.js和OrbitControls的导入是否正确。</p>
+    </div>
+
+    <div class="test-item">
+      <h3>导入测试</h3>
+      <button onclick="testImports()">测试导入</button>
+      <button onclick="testOrbitControls()">测试OrbitControls</button>
+      <button onclick="clearLog()">清空日志</button>
+    </div>
+
+    <div class="test-item">
+      <h3>测试日志</h3>
+      <div id="log"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+
+    window.testImports = function () {
+      log('开始测试导入...', 'info');
+
+      try {
+        // 测试THREE导入
+        if (THREE) {
+          log('✓ THREE.js 导入成功', 'success');
+          log(`  THREE版本: ${THREE.REVISION}`, 'info');
+        } else {
+          log('✗ THREE.js 导入失败', 'error');
+        }
+
+        // 测试OrbitControls导入
+        if (OrbitControls) {
+          log('✓ OrbitControls 导入成功', 'success');
+          log(`  OrbitControls类型: ${typeof OrbitControls}`, 'info');
+        } else {
+          log('✗ OrbitControls 导入失败', 'error');
+        }
+
+        // 测试构造函数
+        if (typeof OrbitControls === 'function') {
+          log('✓ OrbitControls 是构造函数', 'success');
+        } else {
+          log('✗ OrbitControls 不是构造函数', 'error');
+        }
+
+      } catch (error) {
+        log(`✗ 导入测试失败: ${error.message}`, 'error');
+      }
+    };
+
+    window.testOrbitControls = function () {
+      log('开始测试OrbitControls实例化...', 'info');
+
+      try {
+        // 创建场景
+        const scene = new THREE.Scene();
+        log('✓ 场景创建成功', 'success');
+
+        // 创建相机
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        log('✓ 相机创建成功', 'success');
+
+        // 创建渲染器
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(100, 100);
+        log('✓ 渲染器创建成功', 'success');
+
+        // 创建OrbitControls
+        const controls = new OrbitControls(camera, renderer.domElement);
+        log('✓ OrbitControls 实例化成功', 'success');
+        log(`  controls类型: ${typeof controls}`, 'info');
+
+        // 测试controls属性
+        if (controls.enableDamping !== undefined) {
+          log('✓ controls.enableDamping 属性存在', 'success');
+        }
+        if (controls.update !== undefined) {
+          log('✓ controls.update 方法存在', 'success');
+        }
+
+        log('🎉 所有测试通过！OrbitControls可以正常使用', 'success');
+
+      } catch (error) {
+        log(`✗ OrbitControls测试失败: ${error.message}`, 'error');
+        log(`  错误堆栈: ${error.stack}`, 'error');
+      }
+    };
+
+    function log (message, type = 'info') {
+      const logDiv = document.getElementById('log');
+      const timestamp = new Date().toLocaleTimeString();
+      const logEntry = `[${timestamp}] ${message}\n`;
+      logDiv.textContent += logEntry;
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    window.clearLog = function () {
+      document.getElementById('log').textContent = '';
+    };
+
+    // 页面加载时自动测试
+    window.addEventListener('load', () => {
+      log('页面加载完成，可以开始测试', 'info');
+    });
+  </script>
+</body>
+
+</html>
