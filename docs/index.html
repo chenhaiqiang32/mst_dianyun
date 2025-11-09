@@ -1,26 +1,159 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Three.js Demo</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>点云数据采集与演示</title>
   <style>
-    body {
+    * {
       margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Arial', sans-serif;
+      background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+      overflow: hidden;
+      color: white;
+    }
+
+    #loading {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+      transition: opacity 0.5s ease;
+    }
+
+    .loading-spinner {
+      width: 50px;
+      height: 50px;
+      border: 3px solid rgba(255, 255, 255, 0.3);
+      border-top: 3px solid #fff;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-bottom: 20px;
+    }
+
+    @keyframes spin {
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+
+    .loading-text {
+      font-size: 18px;
+      color: white;
+      text-align: center;
+    }
+
+    .loading-progress {
+      width: 300px;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.3);
+      border-radius: 2px;
+      margin-top: 20px;
       overflow: hidden;
     }
 
-    canvas {
-      width: 100%;
+    .loading-bar {
       height: 100%;
-      display: block;
+      background: linear-gradient(90deg, #4CAF50, #45a049);
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+
+    #title {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 24px;
+      font-weight: bold;
+      color: white;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+      z-index: 1000;
+    }
+
+    #instructions {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 14px;
+      color: rgba(255, 255, 255, 0.8);
+      text-align: center;
+      z-index: 1000;
+      background: rgba(0, 0, 0, 0.5);
+      padding: 10px 20px;
+      border-radius: 5px;
+    }
+
+    .hidden {
+      opacity: 0 !important;
+      pointer-events: none;
     }
   </style>
-  <script type="module" crossorigin src="./assets/index-BCg1h0PE.js"></script>
+  <script type="module" crossorigin src="./assets/index-BC-5ST6S.js"></script>
 </head>
 
 <body>
+  <div id="loading">
+    <div class="loading-spinner"></div>
+    <div class="loading-text">正在加载点云数据...</div>
+    <div class="loading-progress">
+      <div class="loading-bar" id="loadingBar"></div>
+    </div>
+  </div>
+
+  <div id="title">点云数据采集与演示系统</div>
+
+      <div id="instructions">
+        鼠标左键旋转视角 | 鼠标滚轮缩放 | 鼠标右键平移 | 使用左上角控制面板切换点云<br>
+        <small style="color: rgba(255,255,255,0.6);">服务器运行在端口 5174</small>
+    </div>
+
+  <script>
+    // 模拟加载进度
+    let progress = 0;
+    const loadingBar = document.getElementById('loadingBar');
+    const loading = document.getElementById('loading');
+
+    const progressInterval = setInterval(() => {
+      progress += Math.random() * 15;
+      if (progress > 100) progress = 100;
+      loadingBar.style.width = progress + '%';
+
+      if (progress >= 100) {
+        clearInterval(progressInterval);
+        setTimeout(() => {
+          loading.classList.add('hidden');
+        }, 500);
+      }
+    }, 200);
+
+    // 监听点云加载完成事件
+    window.addEventListener('pointCloudLoaded', () => {
+      progress = 100;
+      loadingBar.style.width = '100%';
+      setTimeout(() => {
+        loading.classList.add('hidden');
+      }, 500);
+    });
+  </script>
 </body>
 
 </html>
