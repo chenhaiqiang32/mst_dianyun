@@ -28,6 +28,28 @@ export class PointCloudDemo {
     this.init();
   }
 
+  resolveAssetUrl(path) {
+    const sanitizedPath = path.replace(/^\//, "");
+    const base = import.meta.env?.BASE_URL ?? "/";
+    let baseUrl;
+
+    if (!base || base === "/") {
+      baseUrl = `${window.location.origin}/`;
+    } else if (base === "./") {
+      const { origin, pathname } = window.location;
+      const directory = pathname.endsWith("/")
+        ? pathname
+        : pathname.substring(0, pathname.lastIndexOf("/") + 1);
+      baseUrl = `${origin}${directory}`;
+    } else {
+      baseUrl = base.startsWith("http")
+        ? base
+        : new URL(base, window.location.origin).toString();
+    }
+
+    return new URL(sanitizedPath, baseUrl).toString();
+  }
+
   init() {
     try {
       // 检查WebGL支持
@@ -243,10 +265,16 @@ export class PointCloudDemo {
   loadPointClouds() {
     console.log("开始加载点云数据...");
     console.log("当前场景对象数量:", this.scene.children.length);
+    const lionBaseUrl = this.resolveAssetUrl("data/lion_takanawa/");
+    const pumpBaseUrl = this.resolveAssetUrl("data/pump/");
+    console.log("点云资源基路径已解析:", {
+      lionBaseUrl,
+      pumpBaseUrl,
+    });
 
     // 加载狮子雕像点云 - 放在左侧
     this.loadPointCloud(
-      "/data/lion_takanawa/",
+      lionBaseUrl,
       "cloud.js",
       new THREE.Vector3(-10, 0, 0),
       new THREE.Euler(0, 0, 0),
@@ -256,7 +284,7 @@ export class PointCloudDemo {
 
     // 加载泵设备点云 - 放在右侧
     this.loadPointCloud(
-      "/data/pump/",
+      pumpBaseUrl,
       "metadata.json",
       new THREE.Vector3(10, 0, 0),
       new THREE.Euler(0, 0, 0),
